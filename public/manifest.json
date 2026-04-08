@@ -1,0 +1,8 @@
+{
+  "name": "Daily Ops",
+  "short_name": "DailyOps",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f8",
+  "theme_color": "#1a1a1a"
+}

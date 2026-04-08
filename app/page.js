@@ -1,66 +1,666 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+const DEFAULT_BLOCKS = [
+  { id: "1", time: "6:00 AM", task: "Wake up — water, wet face" },
+  { id: "2", time: "6:05 AM", task: "Prayer + dynamic stretch (15min)" },
+  { id: "3", time: "6:30 AM", task: "Cardio — Stairmaster, walk, run" },
+  { id: "4", time: "7:45 AM", task: "Shower + eat" },
+  { id: "5", time: "8:00 AM", task: "Backend work — Meta ads, GHL, client deliverables (1 hr)" },
+  { id: "6", time: "9:00 AM", task: "Pre-market review — watchlist, bias, plan" },
+  { id: "7", time: "9:30 AM", task: "Focused trade window — charts only, zero distractions" },
+  { id: "8", time: "10:30 AM", task: "Cold calling block 1 — 2 hours, dial/qualify/book" },
+  { id: "9", time: "12:30 PM", task: "Gym + eat — train hard, decompress, come back sharp" },
+  { id: "10", time: "2:30 PM", task: "Cold calling block 2 — 2 more hours, finish strong" },
+  { id: "11", time: "4:30 PM", task: "Review — trading journal + tomorrow's plan" },
+  { id: "12", time: "5:00 PM", task: "You're done. Take 1hr break for last work block." },
+  { id: "13", time: "6:00 PM", task: "(Optional) Extra backend work, systems, or deep work — only if you have energy" },
+];
+
+const BOLD_KEYWORDS = ["Cold calling", "Focused trade", "You're done", "Backend work"];
+
+const BLOCKS_KEY = "planner-blocks-v2";
+const DAILY_KEY = "planner-daily-v2";
+const MEALS_KEY = "planner-meals-v2";
+
+function dateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatLong(d) {
+  return d.toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function isBoldTask(task) {
+  return BOLD_KEYWORDS.some((k) => task.toLowerCase().includes(k.toLowerCase()));
+}
+
+const MEAL_FIELDS = [
+  { key: "breakfast", label: "Breakfast" },
+  { key: "lunch", label: "Lunch" },
+  { key: "dinner", label: "Dinner" },
+  { key: "snacks", label: "Snacks" },
+];
 
 export default function Home() {
+  const [hydrated, setHydrated] = useState(false);
+  const [blocks, setBlocks] = useState(DEFAULT_BLOCKS);
+  const [daily, setDaily] = useState({});
+  const [meals, setMeals] = useState({});
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  // edit state
+  const [editingId, setEditingId] = useState(null);
+  const [editingField, setEditingField] = useState(null); // "time" | "task"
+  const [editValue, setEditValue] = useState("");
+
+  // add row state
+  const [addingRow, setAddingRow] = useState(false);
+  const [newTime, setNewTime] = useState("");
+  const [newTask, setNewTask] = useState("");
+
+  const [hoverId, setHoverId] = useState(null);
+
+  useEffect(() => {
+    try {
+      const b = localStorage.getItem(BLOCKS_KEY);
+      const d = localStorage.getItem(DAILY_KEY);
+      const m = localStorage.getItem(MEALS_KEY);
+      if (b) setBlocks(JSON.parse(b));
+      if (d) setDaily(JSON.parse(d));
+      if (m) setMeals(JSON.parse(m));
+    } catch (e) {}
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks));
+  }, [blocks, hydrated]);
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(DAILY_KEY, JSON.stringify(daily));
+  }, [daily, hydrated]);
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(MEALS_KEY, JSON.stringify(meals));
+  }, [meals, hydrated]);
+
+  const today = new Date();
+  const dk = dateKey(currentDate);
+  const todayKey = dateKey(today);
+  const isToday = dk === todayKey;
+
+  const dayEntries = daily[dk] || {};
+  const dayMeals = meals[dk] || {};
+
+  const plannedCount = useMemo(
+    () => blocks.filter((b) => (dayEntries[b.id] || "").trim() !== "").length,
+    [blocks, dayEntries]
+  );
+  const totalCount = blocks.length;
+  const progressPct = totalCount ? (plannedCount / totalCount) * 100 : 0;
+
+  function changeDay(delta) {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + delta);
+    setCurrentDate(d);
+  }
+
+  function goToday() {
+    setCurrentDate(new Date());
+  }
+
+  function updateEntry(blockId, value) {
+    setDaily((prev) => ({
+      ...prev,
+      [dk]: { ...(prev[dk] || {}), [blockId]: value },
+    }));
+  }
+
+  function updateMeal(key, value) {
+    setMeals((prev) => ({
+      ...prev,
+      [dk]: { ...(prev[dk] || {}), [key]: value },
+    }));
+  }
+
+  function startEdit(id, field, currentValue) {
+    setEditingId(id);
+    setEditingField(field);
+    setEditValue(currentValue);
+  }
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingField(null);
+    setEditValue("");
+  }
+  function saveEdit() {
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === editingId ? { ...b, [editingField]: editValue } : b))
+    );
+    cancelEdit();
+  }
+
+  function deleteBlock(id) {
+    setBlocks((prev) => prev.filter((b) => b.id !== id));
+  }
+
+  function addBlock() {
+    if (!newTime.trim() || !newTask.trim()) return;
+    const id = Date.now().toString();
+    setBlocks((prev) => [...prev, { id, time: newTime.trim(), task: newTask.trim() }]);
+    setNewTime("");
+    setNewTask("");
+    setAddingRow(false);
+  }
+
+  function copyPrev() {
+    const prev = new Date(currentDate);
+    prev.setDate(prev.getDate() - 1);
+    const pk = dateKey(prev);
+    setDaily((p) => ({ ...p, [dk]: { ...(p[pk] || {}) } }));
+    setMeals((p) => ({ ...p, [dk]: { ...(p[pk] || {}) } }));
+  }
+
+  function clearDay() {
+    setDaily((p) => {
+      const n = { ...p };
+      delete n[dk];
+      return n;
+    });
+    setMeals((p) => {
+      const n = { ...p };
+      delete n[dk];
+      return n;
+    });
+  }
+
+  function resetAll() {
+    if (!confirm("Reset everything? This clears all data.")) return;
+    localStorage.removeItem(BLOCKS_KEY);
+    localStorage.removeItem(DAILY_KEY);
+    localStorage.removeItem(MEALS_KEY);
+    setBlocks(DEFAULT_BLOCKS);
+    setDaily({});
+    setMeals({});
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
+    <div style={{ minHeight: "100vh", padding: "32px 20px", maxWidth: 880, margin: "0 auto" }}>
+      {/* Header */}
+      <header style={{ marginBottom: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              onClick={() => changeDay(-1)}
+              aria-label="Previous day"
+              style={navBtnStyle}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
+              ‹
+            </button>
+            <div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  color: "#1a1a1a",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                {formatLong(currentDate)}
+                {isToday && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      letterSpacing: 0.5,
+                      background: "#43a047",
+                      color: "#fff",
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                    }}
+                  >
+                    TODAY
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Daily Ops</div>
+            </div>
+            <button
+              onClick={() => changeDay(1)}
+              aria-label="Next day"
+              style={navBtnStyle}
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              ›
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {!isToday && (
+              <button
+                onClick={goToday}
+                style={{
+                  padding: "8px 14px",
+                  background: "#e8f5e9",
+                  color: "#2e7d32",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                Today
+              </button>
+            )}
+            <button onClick={copyPrev} style={ghostBtnStyle}>
+              Copy prev day
+            </button>
+            <button onClick={clearDay} style={ghostBtnStyle}>
+              Clear day
+            </button>
+          </div>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Progress */}
+        <div style={{ marginTop: 18 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 12,
+              color: "#999",
+              marginBottom: 6,
+            }}
           >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <span>
+              Planned {plannedCount}/{totalCount}
+            </span>
+            <span>{Math.round(progressPct)}%</span>
+          </div>
+          <div
+            style={{
+              height: 6,
+              background: "#ececec",
+              borderRadius: 999,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${progressPct}%`,
+                height: "100%",
+                background: progressPct === 100 ? "#43a047" : "#1e88e5",
+                transition: "width 0.3s ease",
+              }}
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
         </div>
-      </main>
+      </header>
+
+      {/* Table card */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e6e6e6",
+          borderRadius: 14,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Table header */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "86px 1fr 1fr",
+            padding: "12px 16px",
+            fontSize: 11,
+            fontWeight: 500,
+            color: "#aaa",
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
+            borderBottom: "1px solid #f0f0f0",
+          }}
+        >
+          <div>Time</div>
+          <div>Block</div>
+          <div style={{ color: "#1e88e5" }}>Today's specifics</div>
+        </div>
+
+        {blocks.map((b) => {
+          const entry = dayEntries[b.id] || "";
+          const filled = entry.trim() !== "";
+          const isHover = hoverId === b.id;
+          return (
+            <div
+              key={b.id}
+              onMouseEnter={() => setHoverId(b.id)}
+              onMouseLeave={() => setHoverId(null)}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "86px 1fr 1fr",
+                padding: "10px 16px",
+                borderBottom: "1px solid #f2f2f2",
+                background: filled ? "#fafff9" : "transparent",
+                position: "relative",
+                gap: 8,
+                alignItems: "start",
+              }}
+            >
+              {/* TIME */}
+              <div
+                style={{
+                  fontFamily: "var(--font-dm-mono), monospace",
+                  fontSize: 12,
+                  color: "#999",
+                  paddingTop: 6,
+                }}
+              >
+                {editingId === b.id && editingField === "time" ? (
+                  <EditCell
+                    value={editValue}
+                    onChange={setEditValue}
+                    onSave={saveEdit}
+                    onCancel={cancelEdit}
+                    width={72}
+                  />
+                ) : (
+                  <span
+                    onClick={() => startEdit(b.id, "time", b.time)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {b.time}
+                  </span>
+                )}
+              </div>
+              {/* TASK */}
+              <div style={{ paddingRight: 8, paddingTop: 4 }}>
+                {editingId === b.id && editingField === "task" ? (
+                  <EditCell
+                    value={editValue}
+                    onChange={setEditValue}
+                    onSave={saveEdit}
+                    onCancel={cancelEdit}
+                  />
+                ) : (
+                  <span
+                    onClick={() => startEdit(b.id, "task", b.task)}
+                    style={{
+                      cursor: "pointer",
+                      fontSize: 14,
+                      color: "#333",
+                      fontWeight: isBoldTask(b.task) ? 600 : 400,
+                    }}
+                  >
+                    {b.task}
+                  </span>
+                )}
+              </div>
+              {/* SPECIFICS */}
+              <div style={{ position: "relative" }}>
+                <textarea
+                  value={entry}
+                  onChange={(e) => updateEntry(b.id, e.target.value)}
+                  placeholder="specific for today..."
+                  rows={1}
+                  style={{
+                    width: "100%",
+                    background: "transparent",
+                    border: "1px solid transparent",
+                    borderRadius: 6,
+                    padding: "5px 8px",
+                    fontSize: 14,
+                    color: "#1a1a1a",
+                    outline: "none",
+                    minHeight: 30,
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#d4d4d4")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "transparent")}
+                />
+                {isHover && (
+                  <button
+                    onClick={() => deleteBlock(b.id)}
+                    aria-label="Delete row"
+                    style={{
+                      position: "absolute",
+                      right: -6,
+                      top: 4,
+                      width: 22,
+                      height: 22,
+                      borderRadius: 6,
+                      color: "#aaa",
+                      fontSize: 14,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Add row */}
+        <div style={{ padding: 12 }}>
+          {addingRow ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                value={newTime}
+                onChange={(e) => setNewTime(e.target.value)}
+                placeholder="7:00 AM"
+                style={{
+                  width: 90,
+                  padding: "8px 10px",
+                  border: "1px solid #d4d4d4",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontFamily: "var(--font-dm-mono), monospace",
+                  outline: "none",
+                }}
+              />
+              <input
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="Block description"
+                style={{
+                  flex: 1,
+                  padding: "8px 10px",
+                  border: "1px solid #d4d4d4",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={addBlock}
+                style={{
+                  padding: "8px 14px",
+                  background: "#2e7d32",
+                  color: "#fff",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                Add
+              </button>
+              <button
+                onClick={() => {
+                  setAddingRow(false);
+                  setNewTime("");
+                  setNewTask("");
+                }}
+                style={ghostBtnStyle}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingRow(true)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: "1px dashed #d4d4d4",
+                borderRadius: 10,
+                color: "#999",
+                fontSize: 13,
+              }}
+            >
+              + Add time block
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Meals */}
+      <div style={{ marginTop: 24 }}>
+        <h2
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: "#aaa",
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
+            marginBottom: 10,
+          }}
+        >
+          Meals
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 12,
+          }}
+        >
+          {MEAL_FIELDS.map((m) => (
+            <div
+              key={m.key}
+              style={{
+                background: "#fff",
+                border: "1px solid #e6e6e6",
+                borderRadius: 12,
+                padding: 14,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "#aaa",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.6,
+                  marginBottom: 6,
+                }}
+              >
+                {m.label}
+              </div>
+              <textarea
+                value={dayMeals[m.key] || ""}
+                onChange={(e) => updateMeal(m.key, e.target.value)}
+                placeholder="..."
+                rows={2}
+                style={{
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  fontSize: 14,
+                  color: "#1a1a1a",
+                  minHeight: 40,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer
+        style={{
+          marginTop: 32,
+          paddingTop: 16,
+          borderTop: "1px solid #ececec",
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 11,
+          color: "#aaa",
+        }}
+      >
+        <span>Daily Ops · saved locally</span>
+        <button onClick={resetAll} style={{ fontSize: 11, color: "#aaa" }}>
+          Reset all data
+        </button>
+      </footer>
     </div>
   );
 }
+
+function EditCell({ value, onChange, onSave, onCancel, width }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSave();
+          if (e.key === "Escape") onCancel();
+        }}
+        style={{
+          width: width || "100%",
+          padding: "4px 6px",
+          border: "1px solid #d4d4d4",
+          borderRadius: 6,
+          fontSize: 13,
+          outline: "none",
+        }}
+      />
+      <button onClick={onSave} style={{ color: "#2e7d32", fontSize: 14 }}>
+        ✓
+      </button>
+      <button onClick={onCancel} style={{ color: "#aaa", fontSize: 14 }}>
+        ×
+      </button>
+    </span>
+  );
+}
+
+const navBtnStyle = {
+  width: 32,
+  height: 32,
+  borderRadius: 8,
+  background: "#fff",
+  border: "1px solid #e6e6e6",
+  fontSize: 18,
+  color: "#666",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const ghostBtnStyle = {
+  padding: "8px 14px",
+  background: "#fff",
+  border: "1px solid #e6e6e6",
+  borderRadius: 8,
+  fontSize: 13,
+  color: "#666",
+};
