@@ -24,6 +24,7 @@ const BLOCKS_KEY = "planner-blocks-v2";
 const DAILY_KEY = "planner-daily-v2";
 const MEALS_KEY = "planner-meals-v2";
 const CHECKIN_KEY = "planner-checkins-v1";
+const CHECKIN_CONFIG_KEY = "planner-checkin-config-v1";
 
 const WORLD_CLOCKS = [
   { label: "New York", tz: "America/New_York" },
@@ -34,7 +35,7 @@ const WORLD_CLOCKS = [
 ];
 
 // Check-ins fire when local time >= hour:minute (once per day per id)
-const CHECKINS = [
+const DEFAULT_CHECKINS = [
   {
     id: "morning",
     hour: 10,
@@ -122,6 +123,8 @@ export default function Home() {
   const [dragOverId, setDragOverId] = useState(null);
   const [now, setNow] = useState(() => new Date());
   const [showClocks, setShowClocks] = useState(false);
+  const [checkinConfig, setCheckinConfig] = useState(DEFAULT_CHECKINS);
+  const [showCheckinSettings, setShowCheckinSettings] = useState(false);
   const [checkins, setCheckins] = useState({}); // { "2026-04-08": { afternoon: "good"|"bad"|"dismissed" } }
   const [activeCheckin, setActiveCheckin] = useState(null); // checkin object
   const [checkinStage, setCheckinStage] = useState("ask"); // "ask" | "reply"
@@ -142,6 +145,8 @@ export default function Home() {
       if (d) setDaily(JSON.parse(d));
       if (m) setMeals(JSON.parse(m));
       if (c) setCheckins(JSON.parse(c));
+      const cfg = localStorage.getItem(CHECKIN_CONFIG_KEY);
+      if (cfg) setCheckinConfig(JSON.parse(cfg));
     } catch (e) {}
     setHydrated(true);
   }, []);
@@ -158,7 +163,7 @@ export default function Home() {
     const tk = dateKey(now);
     const todays = checkins[tk] || {};
     const curMin = now.getHours() * 60 + now.getMinutes();
-    for (const c of CHECKINS) {
+    for (const c of checkinConfig) {
       const cMin = c.hour * 60 + c.minute;
       if (curMin >= cMin && !todays[c.id]) {
         setActiveCheckin(c);
@@ -172,6 +177,10 @@ export default function Home() {
   useEffect(() => {
     if (hydrated) localStorage.setItem(CHECKIN_KEY, JSON.stringify(checkins));
   }, [checkins, hydrated]);
+  useEffect(() => {
+    if (hydrated)
+      localStorage.setItem(CHECKIN_CONFIG_KEY, JSON.stringify(checkinConfig));
+  }, [checkinConfig, hydrated]);
 
   useEffect(() => {
     if (hydrated) localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks));
@@ -420,6 +429,17 @@ export default function Home() {
               show={showClocks}
               setShow={setShowClocks}
             />
+            <button
+              onClick={() => setShowCheckinSettings(true)}
+              title="Check-in settings"
+              style={{
+                ...ghostBtnStyle,
+                padding: "8px 10px",
+                fontSize: 14,
+              }}
+            >
+              ⚙
+            </button>
             <button onClick={copyPrev} style={ghostBtnStyle}>
               Copy prev day
             </button>
@@ -777,6 +797,16 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Check-in settings */}
+      {showCheckinSettings && (
+        <CheckinSettingsModal
+          config={checkinConfig}
+          setConfig={setCheckinConfig}
+          onClose={() => setShowCheckinSettings(false)}
+          onReset={() => setCheckinConfig(DEFAULT_CHECKINS)}
+        />
+      )}
+
       {/* Check-in modal */}
       {activeCheckin && (
         <CheckinModal
@@ -942,6 +972,233 @@ function ClockWidget({ now, show, setShow }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function CheckinSettingsModal({ config, setConfig, onClose, onReset }) {
+  function update(idx, field, value) {
+    setConfig((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c))
+    );
+  }
+  function remove(idx) {
+    setConfig((prev) => prev.filter((_, i) => i !== idx));
+  }
+  function add() {
+    setConfig((prev) => [
+      ...prev,
+      {
+        id: "c" + Date.now(),
+        hour: 12,
+        minute: 0,
+        question: "New check-in — how are you?",
+        goodReply: "Keep going.",
+        badReply: "Take a breath, reset, come back.",
+      },
+    ]);
+  }
+
+  function timeString(c) {
+    const h = String(c.hour).padStart(2, "0");
+    const m = String(c.minute).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  function setTime(idx, value) {
+    const [h, m] = value.split(":").map((n) => parseInt(n, 10));
+    if (Number.isFinite(h) && Number.isFinite(m)) {
+      setConfig((prev) =>
+        prev.map((c, i) => (i === idx ? { ...c, hour: h, minute: m } : c))
+      );
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(26,26,26,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 100,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: 24,
+          maxWidth: 560,
+          width: "100%",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 18,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "#1a1a1a" }}>
+              Check-in settings
+            </div>
+            <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
+              Times fire once per day when reached
+            </div>
+          </div>
+          <button onClick={onClose} style={{ fontSize: 20, color: "#aaa" }}>
+            ×
+          </button>
+        </div>
+
+        {config.map((c, idx) => (
+          <div
+            key={c.id}
+            style={{
+              border: "1px solid #e6e6e6",
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 12,
+              background: "#fafafa",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <input
+                type="time"
+                value={timeString(c)}
+                onChange={(e) => setTime(idx, e.target.value)}
+                style={{
+                  padding: "6px 8px",
+                  border: "1px solid #d4d4d4",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: "var(--font-dm-mono), monospace",
+                  background: "#fff",
+                }}
+              />
+              <button
+                onClick={() => remove(idx)}
+                style={{ marginLeft: "auto", color: "#b91c1c", fontSize: 12 }}
+              >
+                Delete
+              </button>
+            </div>
+            <Field
+              label="Question"
+              value={c.question}
+              onChange={(v) => update(idx, "question", v)}
+            />
+            <Field
+              label="Reply if feeling good"
+              value={c.goodReply}
+              onChange={(v) => update(idx, "goodReply", v)}
+            />
+            <Field
+              label="Reply if NOT feeling good"
+              value={c.badReply}
+              onChange={(v) => update(idx, "badReply", v)}
+            />
+          </div>
+        ))}
+
+        <button
+          onClick={add}
+          style={{
+            width: "100%",
+            padding: 10,
+            border: "1px dashed #d4d4d4",
+            borderRadius: 10,
+            color: "#999",
+            fontSize: 13,
+            marginBottom: 12,
+          }}
+        >
+          + Add check-in
+        </button>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={onReset}
+            style={{
+              flex: 1,
+              padding: 10,
+              background: "#fff",
+              border: "1px solid #e6e6e6",
+              borderRadius: 8,
+              fontSize: 13,
+              color: "#666",
+            }}
+          >
+            Reset to defaults
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: 10,
+              background: "#1a1a1a",
+              color: "#fff",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange }) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div
+        style={{
+          fontSize: 10,
+          color: "#aaa",
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          marginBottom: 4,
+          fontWeight: 500,
+        }}
+      >
+        {label}
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={2}
+        style={{
+          width: "100%",
+          padding: "8px 10px",
+          border: "1px solid #e6e6e6",
+          borderRadius: 6,
+          fontSize: 13,
+          color: "#1a1a1a",
+          background: "#fff",
+          outline: "none",
+        }}
+      />
     </div>
   );
 }
