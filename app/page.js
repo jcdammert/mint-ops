@@ -23,6 +23,55 @@ const BOLD_KEYWORDS = ["Cold calling", "Focused trade", "You're done", "Backend 
 const BLOCKS_KEY = "planner-blocks-v2";
 const DAILY_KEY = "planner-daily-v2";
 const MEALS_KEY = "planner-meals-v2";
+const CHECKIN_KEY = "planner-checkins-v1";
+
+const WORLD_CLOCKS = [
+  { label: "New York", tz: "America/New_York" },
+  { label: "London", tz: "Europe/London" },
+  { label: "Dubai", tz: "Asia/Dubai" },
+  { label: "Tokyo", tz: "Asia/Tokyo" },
+  { label: "Sydney", tz: "Australia/Sydney" },
+];
+
+// Check-ins fire when local time >= hour:minute (once per day per id)
+const CHECKINS = [
+  {
+    id: "morning",
+    hour: 10,
+    minute: 0,
+    question: "Morning check — how's the energy so far?",
+    goodReply: "Love it. Keep momentum — knock out your next block.",
+    badReply:
+      "You usually feel better after 10 deep breaths + a glass of water. Do that, then ease into your next block.",
+  },
+  {
+    id: "midday",
+    hour: 13,
+    minute: 0,
+    question: "Midday check — still on track with the plan?",
+    goodReply: "Great. Protect the afternoon block — no distractions.",
+    badReply:
+      "Reset. Step outside for 5 minutes of sunlight, drink water, then pick the ONE next task and commit.",
+  },
+  {
+    id: "afternoon",
+    hour: 16,
+    minute: 0,
+    question: "How's your day going so far? Feeling good?",
+    goodReply: "Perfect. Finish strong — one focused push until the review block.",
+    badReply:
+      "You usually go for walks right now and it makes you feel better. Go for a 15-min walk, then come back and do the work you were supposed to do.",
+  },
+  {
+    id: "evening",
+    hour: 19,
+    minute: 0,
+    question: "Evening check — how'd today actually go?",
+    goodReply: "Good. Journal one win, set tomorrow's top 3, then rest.",
+    badReply:
+      "It's okay. Write down ONE thing you learned, ONE thing you'll change, then close the laptop. Tomorrow resets.",
+  },
+];
 
 function dateKey(d) {
   const y = d.getFullYear();
@@ -71,6 +120,12 @@ export default function Home() {
   const [hoverId, setHoverId] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
+  const [now, setNow] = useState(() => new Date());
+  const [showClocks, setShowClocks] = useState(false);
+  const [checkins, setCheckins] = useState({}); // { "2026-04-08": { afternoon: "good"|"bad"|"dismissed" } }
+  const [activeCheckin, setActiveCheckin] = useState(null); // checkin object
+  const [checkinStage, setCheckinStage] = useState("ask"); // "ask" | "reply"
+  const [checkinReply, setCheckinReply] = useState("");
   const [showCalendar, setShowCalendar] = useState(false);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
@@ -82,12 +137,41 @@ export default function Home() {
       const b = localStorage.getItem(BLOCKS_KEY);
       const d = localStorage.getItem(DAILY_KEY);
       const m = localStorage.getItem(MEALS_KEY);
+      const c = localStorage.getItem(CHECKIN_KEY);
       if (b) setBlocks(JSON.parse(b));
       if (d) setDaily(JSON.parse(d));
       if (m) setMeals(JSON.parse(m));
+      if (c) setCheckins(JSON.parse(c));
     } catch (e) {}
     setHydrated(true);
   }, []);
+
+  // Live clock — tick every second
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Check-in trigger — runs on every tick, fires first unseen check-in whose time has passed
+  useEffect(() => {
+    if (!hydrated || activeCheckin) return;
+    const tk = dateKey(now);
+    const todays = checkins[tk] || {};
+    const curMin = now.getHours() * 60 + now.getMinutes();
+    for (const c of CHECKINS) {
+      const cMin = c.hour * 60 + c.minute;
+      if (curMin >= cMin && !todays[c.id]) {
+        setActiveCheckin(c);
+        setCheckinStage("ask");
+        setCheckinReply("");
+        return;
+      }
+    }
+  }, [now, hydrated, checkins, activeCheckin]);
+
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(CHECKIN_KEY, JSON.stringify(checkins));
+  }, [checkins, hydrated]);
 
   useEffect(() => {
     if (hydrated) localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks));
@@ -208,6 +292,27 @@ export default function Home() {
     setDragOverId(null);
   }
 
+  function answerCheckin(answer) {
+    if (!activeCheckin) return;
+    const tk = dateKey(now);
+    setCheckins((prev) => ({
+      ...prev,
+      [tk]: { ...(prev[tk] || {}), [activeCheckin.id]: answer },
+    }));
+    if (answer === "dismissed") {
+      setActiveCheckin(null);
+      return;
+    }
+    setCheckinReply(answer === "good" ? activeCheckin.goodReply : activeCheckin.badReply);
+    setCheckinStage("reply");
+  }
+
+  function closeCheckin() {
+    setActiveCheckin(null);
+    setCheckinStage("ask");
+    setCheckinReply("");
+  }
+
   function pickDate(d) {
     setCurrentDate(d);
     setShowCalendar(false);
@@ -310,6 +415,11 @@ export default function Home() {
                 Today
               </button>
             )}
+            <ClockWidget
+              now={now}
+              show={showClocks}
+              setShow={setShowClocks}
+            />
             <button onClick={copyPrev} style={ghostBtnStyle}>
               Copy prev day
             </button>
@@ -667,6 +777,17 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Check-in modal */}
+      {activeCheckin && (
+        <CheckinModal
+          checkin={activeCheckin}
+          stage={checkinStage}
+          reply={checkinReply}
+          onAnswer={answerCheckin}
+          onClose={closeCheckin}
+        />
+      )}
+
       {/* Footer */}
       <footer
         style={{
@@ -715,6 +836,226 @@ function EditCell({ value, onChange, onSave, onCancel, width }) {
         ×
       </button>
     </span>
+  );
+}
+
+function ClockWidget({ now, show, setShow }) {
+  const localTime = now.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setShow(!show)}
+        title="World clocks"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "8px 12px",
+          background: "#fff",
+          border: "1px solid #e6e6e6",
+          borderRadius: 8,
+          fontSize: 13,
+          color: "#333",
+          fontFamily: "var(--font-dm-mono), monospace",
+        }}
+      >
+        <span style={{ fontSize: 14 }}>🕐</span>
+        <span>{localTime}</span>
+      </button>
+      {show && (
+        <>
+          <div
+            onClick={() => setShow(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 40 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              right: 0,
+              marginTop: 8,
+              zIndex: 50,
+              background: "#fff",
+              border: "1px solid #e6e6e6",
+              borderRadius: 12,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+              padding: 14,
+              width: 240,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: "#aaa",
+                textTransform: "uppercase",
+                letterSpacing: 0.6,
+                marginBottom: 10,
+                fontWeight: 500,
+              }}
+            >
+              World Clocks
+            </div>
+            {WORLD_CLOCKS.map((c) => {
+              const t = now.toLocaleTimeString("en-US", {
+                timeZone: c.tz,
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              });
+              const d = now.toLocaleDateString("en-US", {
+                timeZone: c.tz,
+                weekday: "short",
+              });
+              return (
+                <div
+                  key={c.tz}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #f2f2f2",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, color: "#1a1a1a", fontWeight: 500 }}>
+                      {c.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#aaa" }}>{d}</div>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-dm-mono), monospace",
+                      fontSize: 13,
+                      color: "#333",
+                    }}
+                  >
+                    {t}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CheckinModal({ checkin, stage, reply, onAnswer, onClose }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(26,26,26,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 100,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: 28,
+          maxWidth: 420,
+          width: "100%",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            color: "#aaa",
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
+            fontWeight: 500,
+            marginBottom: 10,
+          }}
+        >
+          Check-in · {checkin.hour % 12 || 12}:{String(checkin.minute).padStart(2, "0")}{" "}
+          {checkin.hour >= 12 ? "PM" : "AM"}
+        </div>
+        {stage === "ask" ? (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "#1a1a1a", marginBottom: 20 }}>
+              {checkin.question}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => onAnswer("good")}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  background: "#e8f5e9",
+                  color: "#2e7d32",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                Yes, feeling good
+              </button>
+              <button
+                onClick={() => onAnswer("bad")}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                Not really
+              </button>
+            </div>
+            <button
+              onClick={() => onAnswer("dismissed")}
+              style={{
+                marginTop: 12,
+                width: "100%",
+                padding: "8px",
+                fontSize: 12,
+                color: "#aaa",
+              }}
+            >
+              Skip
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 15, color: "#333", lineHeight: 1.5, marginBottom: 20 }}>
+              {reply}
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                width: "100%",
+                padding: "12px",
+                background: "#1a1a1a",
+                color: "#fff",
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              Got it
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
