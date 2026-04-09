@@ -69,6 +69,13 @@ export default function Home() {
   const [newTask, setNewTask] = useState("");
 
   const [hoverId, setHoverId] = useState(null);
+  const [dragId, setDragId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
 
   useEffect(() => {
     try {
@@ -182,6 +189,30 @@ export default function Home() {
     });
   }
 
+  function handleDrop(targetId) {
+    if (!dragId || dragId === targetId) {
+      setDragId(null);
+      setDragOverId(null);
+      return;
+    }
+    setBlocks((prev) => {
+      const from = prev.findIndex((b) => b.id === dragId);
+      const to = prev.findIndex((b) => b.id === targetId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDragId(null);
+    setDragOverId(null);
+  }
+
+  function pickDate(d) {
+    setCurrentDate(d);
+    setShowCalendar(false);
+  }
+
   function resetAll() {
     if (!confirm("Reset everything? This clears all data.")) return;
     localStorage.removeItem(BLOCKS_KEY);
@@ -213,8 +244,9 @@ export default function Home() {
             >
               ‹
             </button>
-            <div>
+            <div style={{ position: "relative" }}>
               <div
+                onClick={() => setShowCalendar((s) => !s)}
                 style={{
                   fontSize: 22,
                   fontWeight: 600,
@@ -222,6 +254,7 @@ export default function Home() {
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
+                  cursor: "pointer",
                 }}
               >
                 {formatLong(currentDate)}
@@ -241,7 +274,17 @@ export default function Home() {
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Daily Ops</div>
+              <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Daily Ops · click date for calendar</div>
+              {showCalendar && (
+                <CalendarPopover
+                  month={calMonth}
+                  setMonth={setCalMonth}
+                  selected={currentDate}
+                  today={today}
+                  onPick={pickDate}
+                  onClose={() => setShowCalendar(false)}
+                />
+              )}
             </div>
             <button
               onClick={() => changeDay(1)}
@@ -326,7 +369,7 @@ export default function Home() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "86px 1fr 1fr",
+            gridTemplateColumns: "20px 86px 1fr 1fr",
             padding: "12px 16px",
             fontSize: 11,
             fontWeight: 500,
@@ -336,6 +379,7 @@ export default function Home() {
             borderBottom: "1px solid #f0f0f0",
           }}
         >
+          <div></div>
           <div>Time</div>
           <div>Block</div>
           <div style={{ color: "#1e88e5" }}>Today's specifics</div>
@@ -350,17 +394,48 @@ export default function Home() {
               key={b.id}
               onMouseEnter={() => setHoverId(b.id)}
               onMouseLeave={() => setHoverId(null)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (dragId && dragOverId !== b.id) setDragOverId(b.id);
+              }}
+              onDrop={() => handleDrop(b.id)}
               style={{
                 display: "grid",
-                gridTemplateColumns: "86px 1fr 1fr",
+                gridTemplateColumns: "20px 86px 1fr 1fr",
                 padding: "10px 16px",
                 borderBottom: "1px solid #f2f2f2",
-                background: filled ? "#fafff9" : "transparent",
+                background:
+                  dragOverId === b.id && dragId !== b.id
+                    ? "#eef6ff"
+                    : filled
+                    ? "#fafff9"
+                    : "transparent",
+                opacity: dragId === b.id ? 0.4 : 1,
                 position: "relative",
                 gap: 8,
                 alignItems: "start",
               }}
             >
+              {/* DRAG HANDLE */}
+              <div
+                draggable
+                onDragStart={() => setDragId(b.id)}
+                onDragEnd={() => {
+                  setDragId(null);
+                  setDragOverId(null);
+                }}
+                title="Drag to reorder"
+                style={{
+                  cursor: "grab",
+                  color: isHover ? "#bbb" : "transparent",
+                  fontSize: 14,
+                  lineHeight: 1,
+                  paddingTop: 6,
+                  userSelect: "none",
+                }}
+              >
+                ⋮⋮
+              </div>
               {/* TIME */}
               <div
                 style={{
@@ -640,6 +715,109 @@ function EditCell({ value, onChange, onSave, onCancel, width }) {
         ×
       </button>
     </span>
+  );
+}
+
+function CalendarPopover({ month, setMonth, selected, today, onPick, onClose }) {
+  const year = month.getFullYear();
+  const m = month.getMonth();
+  const firstDay = new Date(year, m, 1).getDay();
+  const daysInMonth = new Date(year, m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const selK = dateKey(selected);
+  const todayK = dateKey(today);
+  const monthLabel = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 40 }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "100%",
+          left: 0,
+          marginTop: 8,
+          zIndex: 50,
+          background: "#fff",
+          border: "1px solid #e6e6e6",
+          borderRadius: 12,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+          padding: 14,
+          width: 260,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
+          <button
+            onClick={() => setMonth(new Date(year, m - 1, 1))}
+            style={{ padding: "4px 8px", color: "#666", fontSize: 16 }}
+          >
+            ‹
+          </button>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{monthLabel}</div>
+          <button
+            onClick={() => setMonth(new Date(year, m + 1, 1))}
+            style={{ padding: "4px 8px", color: "#666", fontSize: 16 }}
+          >
+            ›
+          </button>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(7, 1fr)",
+            gap: 2,
+            fontSize: 10,
+            color: "#aaa",
+            textTransform: "uppercase",
+            marginBottom: 4,
+          }}
+        >
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+            <div key={i} style={{ textAlign: "center", padding: 4 }}>
+              {d}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+          {cells.map((d, i) => {
+            if (d === null) return <div key={i} />;
+            const date = new Date(year, m, d);
+            const k = dateKey(date);
+            const isSel = k === selK;
+            const isTod = k === todayK;
+            return (
+              <button
+                key={i}
+                onClick={() => onPick(date)}
+                style={{
+                  padding: "6px 0",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: isSel || isTod ? 600 : 400,
+                  background: isSel ? "#1e88e5" : isTod ? "#e8f5e9" : "transparent",
+                  color: isSel ? "#fff" : isTod ? "#2e7d32" : "#333",
+                }}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
