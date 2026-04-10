@@ -1,5 +1,6 @@
 import { DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
+import { EditProvider } from "./_edit/editable";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -29,7 +30,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${dmSans.variable} ${dmMono.variable}`}>
       <body style={{ fontFamily: "var(--font-dm-sans), system-ui, sans-serif" }}>
-        {children}
+        <EditProvider>{children}</EditProvider>
       </body>
     </html>
   );

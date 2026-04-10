@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EditableText } from "./_edit/editable";
 
 const STORAGE_KEY = "lockin-dashboard-v1";
 const DEADLINE = new Date(2026, 7, 9); // Aug 9, 2026
@@ -197,7 +198,7 @@ export default function Home() {
           marginBottom: 14,
         }}
       >
-        APRIL 9 — DAY ZERO
+        <EditableText id="badge">APRIL 9 — DAY ZERO</EditableText>
       </div>
       <h1
         style={{
@@ -208,10 +209,12 @@ export default function Home() {
           lineHeight: 1.15,
         }}
       >
-        Lock-in command center
+        <EditableText id="title">Lock-in command center</EditableText>
       </h1>
       <p style={{ fontSize: 14, color: "#666", marginBottom: 22, lineHeight: 1.5 }}>
-        7 priorities. No negotiating. Check them off as you build the structure.
+        <EditableText id="subtitle">
+          7 priorities. No negotiating. Check them off as you build the structure.
+        </EditableText>
       </p>
 
       {/* Stats row */}
@@ -223,9 +226,9 @@ export default function Home() {
           marginBottom: 14,
         }}
       >
-        <StatCard label="Completed" value={`${completed} / ${CARDS.length}`} />
-        <StatCard label="Deadline" value="Aug 9" />
-        <StatCard label="Days left" value={daysLeft.toString()} />
+        <StatCard labelId="stat-completed-label" label="Completed" value={`${completed} / ${CARDS.length}`} />
+        <StatCard labelId="stat-deadline-label" label="Deadline" valueId="stat-deadline-value" value="Aug 9" />
+        <StatCard labelId="stat-days-label" label="Days left" value={daysLeft.toString()} />
       </div>
 
       {/* Progress bar */}
@@ -262,7 +265,7 @@ export default function Home() {
           marginBottom: 22,
         }}
       >
-        Open daily planner →
+        <EditableText id="nav-planner">Open daily planner →</EditableText>
       </a>
 
       {/* Cards */}
@@ -329,10 +332,10 @@ export default function Home() {
                       lineHeight: 1.3,
                     }}
                   >
-                    {c.title}
+                    <EditableText id={`card-${c.id}-title`}>{c.title}</EditableText>
                   </div>
                   <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
-                    {c.timeline}
+                    <EditableText id={`card-${c.id}-timeline`}>{c.timeline}</EditableText>
                   </div>
                 </div>
                 <button
@@ -367,7 +370,7 @@ export default function Home() {
                   }}
                 >
                   <p style={{ fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 14 }}>
-                    {c.description}
+                    <EditableText id={`card-${c.id}-desc`}>{c.description}</EditableText>
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {c.subtasks.map((t, idx) => {
@@ -391,7 +394,7 @@ export default function Home() {
                             onChange={() => toggleSub(c.id, idx)}
                             style={{ width: 16, height: 16, accentColor: "#43a047" }}
                           />
-                          <span>{t}</span>
+                          <EditableText id={`card-${c.id}-sub-${idx}`}>{t}</EditableText>
                         </label>
                       );
                     })}
@@ -414,13 +417,13 @@ export default function Home() {
           fontFamily: "var(--font-dm-mono), monospace",
         }}
       >
-        No days off. No excuses. Execute.
+        <EditableText id="footer">No days off. No excuses. Execute.</EditableText>
       </footer>
     </div>
   );
 }
 
-function StatCard({ label, value }) {
+function StatCard({ label, value, labelId, valueId }) {
   return (
     <div
       style={{
@@ -440,9 +443,11 @@ function StatCard({ label, value }) {
           marginBottom: 4,
         }}
       >
-        {label}
+        <EditableText id={labelId}>{label}</EditableText>
       </div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>
+        {valueId ? <EditableText id={valueId}>{value}</EditableText> : value}
+      </div>
     </div>
   );
 }

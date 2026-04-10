@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { EditableText } from "../_edit/editable";
 
 const DEFAULT_BLOCKS = [
   { id: "1", time: "6:00 AM", task: "Wake up — water, wet face" },
@@ -352,7 +353,7 @@ export default function Home() {
           borderRadius: 8,
         }}
       >
-        ← Dashboard
+        <EditableText id="planner-back">← Dashboard</EditableText>
       </a>
       {/* Header */}
       <header style={{ marginBottom: 24 }}>
@@ -403,7 +404,9 @@ export default function Home() {
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Daily Ops · click date for calendar</div>
+              <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
+                <EditableText id="planner-subtitle">Daily Ops · click date for calendar</EditableText>
+              </div>
               {showCalendar && (
                 <CalendarPopover
                   month={calMonth}
@@ -760,7 +763,7 @@ export default function Home() {
             marginBottom: 10,
           }}
         >
-          Meals
+          <EditableText id="planner-meals-label">Meals</EditableText>
         </h2>
         <div
           style={{
@@ -845,7 +848,7 @@ export default function Home() {
           color: "#aaa",
         }}
       >
-        <span>Daily Ops · saved locally</span>
+        <span><EditableText id="planner-footer">Daily Ops · saved locally</EditableText></span>
         <button onClick={resetAll} style={{ fontSize: 11, color: "#aaa" }}>
           Reset all data
         </button>
