@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { EditableText } from "./_edit/editable";
+import NavBar from "./_nav/NavBar";
 
 const STORAGE_KEY = "lockin-dashboard-v1";
 const DEADLINE = new Date(2026, 7, 9); // Aug 9, 2026
@@ -183,6 +184,7 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", padding: "32px 20px", maxWidth: 760, margin: "0 auto" }}>
+      <NavBar />
       {/* Header */}
       <div
         style={{
@@ -250,23 +252,6 @@ export default function Home() {
           }}
         />
       </div>
-
-      {/* Nav */}
-      <a
-        href="/planner"
-        style={{
-          display: "inline-block",
-          padding: "10px 16px",
-          background: "#1a1a1a",
-          color: "#fff",
-          borderRadius: 10,
-          fontSize: 13,
-          fontWeight: 500,
-          marginBottom: 22,
-        }}
-      >
-        <EditableText id="nav-planner">Open daily planner →</EditableText>
-      </a>
 
       {/* Cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

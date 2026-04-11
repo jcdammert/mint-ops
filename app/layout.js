@@ -1,4 +1,4 @@
-import { DM_Sans, DM_Mono } from "next/font/google";
+import { DM_Sans, DM_Mono, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { EditProvider } from "./_edit/editable";
 
@@ -12,6 +12,18 @@ const dmMono = DM_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
   variable: "--font-dm-mono",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-jetbrains",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-space",
 });
 
 export const metadata = {
@@ -28,7 +40,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${dmMono.variable}`}>
+    <html lang="en" className={`${dmSans.variable} ${dmMono.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable}`}>
       <body style={{ fontFamily: "var(--font-dm-sans), system-ui, sans-serif" }}>
         <EditProvider>{children}</EditProvider>
       </body>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { EditableText } from "../_edit/editable";
+import NavBar from "../_nav/NavBar";
 
 const DEFAULT_BLOCKS = [
   { id: "1", time: "6:00 AM", task: "Wake up — water, wet face" },
@@ -340,21 +341,7 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", padding: "32px 20px", maxWidth: 880, margin: "0 auto" }}>
-      <a
-        href="/"
-        style={{
-          display: "inline-block",
-          marginBottom: 16,
-          fontSize: 12,
-          color: "#666",
-          padding: "6px 12px",
-          background: "#fff",
-          border: "1px solid #e6e6e6",
-          borderRadius: 8,
-        }}
-      >
-        <EditableText id="planner-back">← Dashboard</EditableText>
-      </a>
+      <NavBar />
       {/* Header */}
       <header style={{ marginBottom: 24 }}>
         <div
